@@ -2,6 +2,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local HttpService = game:GetService("HttpService")
+local VirtualUser = game:GetService("VirtualUser")
 
 local Player = Players.LocalPlayer
 local PlayerGui = Player:WaitForChild("PlayerGui")
@@ -70,6 +71,7 @@ local Destroyed = false
 local AutoClaimDaily = false
 local AutoClaimWeekly = false
 local AutoHideTowerUI = false
+local AntiAFK = false
 
 local QuestShopSelection = {}
 for _, shopItem in ipairs(QuestConfig.Shop or {}) do
@@ -114,6 +116,7 @@ local function getProfileData()
         AutoClaimDaily = AutoClaimDaily,
         AutoClaimWeekly = AutoClaimWeekly,
         AutoHideTowerUI = AutoHideTowerUI,
+        AntiAFK = AntiAFK,
         QuestShopSelection = QuestShopSelection,
     }
 end
@@ -135,6 +138,7 @@ local function applyProfileData(data)
     AutoClaimDaily = data.AutoClaimDaily == true
     AutoClaimWeekly = data.AutoClaimWeekly == true
     AutoHideTowerUI = data.AutoHideTowerUI == true
+    AntiAFK = data.AntiAFK == true
 
     if type(data.QuestShopSelection) == "table" then
         for _, shopItem in ipairs(QuestConfig.Shop or {}) do
@@ -484,7 +488,7 @@ local function setStatus(message, color)
 end
 
 --// AUTO ROLL SECTION
-local RollSection = createSection("ROLL CONTROL", 155)
+local RollSection = createSection("ROLL CONTROL", 190)
 local SkipLabel = createLabel(
     RollSection,
     "Skip Animation (API not confirmed)",
@@ -521,6 +525,22 @@ local ManualRoll = createButton(
     COLORS.PurpleDark
 )
 
+local AntiAFKLabel = createLabel(
+    RollSection,
+    "Anti AFK",
+    UDim2.fromOffset(13, 108),
+    UDim2.new(1, -100, 0, 24)
+)
+
+local AntiAFKButton = createButton(
+    RollSection,
+    "OFF",
+    UDim2.new(1, -76, 0, 106),
+    UDim2.fromOffset(62, 28)
+)
+
+ManualRoll.Position = UDim2.fromOffset(13, 148)
+
 SkipButton.MouseButton1Click:Connect(function()
     SkipAnimation = not SkipAnimation
     updateToggle(SkipButton, SkipAnimation)
@@ -534,6 +554,25 @@ RollToggle.MouseButton1Click:Connect(function()
     saveConfig(CurrentProfileName)
     saveConfigSoon()
     setStatus(AutoRoll and "AUTO ROLL ENABLED" or "AUTO ROLL DISABLED")
+end)
+
+AntiAFKButton.MouseButton1Click:Connect(function()
+    AntiAFK = not AntiAFK
+    updateToggle(AntiAFKButton, AntiAFK)
+    saveConfig(CurrentProfileName)
+    saveConfigSoon()
+    setStatus(AntiAFK and "ANTI AFK ENABLED" or "ANTI AFK DISABLED")
+end)
+
+-- Roblox raises Player.Idled after inactivity. When enabled, send a small
+-- virtual input to prevent the client from being marked idle.
+Player.Idled:Connect(function()
+    if not AntiAFK or Destroyed then return end
+
+    pcall(function()
+        VirtualUser:CaptureController()
+        VirtualUser:ClickButton2(Vector2.new(0, 0))
+    end)
 end)
 
 local function performRoll()
@@ -1406,6 +1445,7 @@ end
 local function syncLoadedProfileToUI()
     updateToggle(RollToggle, AutoRoll)
     updateToggle(SkipButton, SkipAnimation)
+    updateToggle(AntiAFKButton, AntiAFK)
     updateToggle(AutoTowerButton, AutoTower)
     updateToggle(AutoEquipBestButton, AutoEquipBest)
     updateToggle(SellToggle, AutoSellEnabled)
@@ -1524,10 +1564,10 @@ local function updateLayout()
         local columnWidth = math.floor((width - 30) / 2)
         local rightX = columnWidth + 10
 
-        RollSection.Size = UDim2.fromOffset(columnWidth, 155)
+        RollSection.Size = UDim2.fromOffset(columnWidth, 190)
         RollSection.Position = UDim2.fromOffset(0, 0)
         TowerSection.Size = UDim2.fromOffset(columnWidth, 310)
-        TowerSection.Position = UDim2.fromOffset(0, 165)
+        TowerSection.Position = UDim2.fromOffset(0, 200)
 
         SellSection.Size = UDim2.fromOffset(columnWidth, 205)
         SellSection.Position = UDim2.fromOffset(rightX, 0)
@@ -1548,23 +1588,23 @@ local function updateLayout()
         Main.Size = UDim2.fromOffset(width, height)
 
         local columnWidth = width - 20
-        RollSection.Size = UDim2.fromOffset(columnWidth, 155)
+        RollSection.Size = UDim2.fromOffset(columnWidth, 190)
         RollSection.Position = UDim2.fromOffset(0, 0)
         TowerSection.Size = UDim2.fromOffset(columnWidth, 310)
-        TowerSection.Position = UDim2.fromOffset(0, 165)
+        TowerSection.Position = UDim2.fromOffset(0, 200)
         SellSection.Size = UDim2.fromOffset(columnWidth, 205)
-        SellSection.Position = UDim2.fromOffset(0, 485)
+        SellSection.Position = UDim2.fromOffset(0, 520)
         QuestSection.Size = UDim2.fromOffset(columnWidth, 155)
-        QuestSection.Position = UDim2.fromOffset(0, 700)
+        QuestSection.Position = UDim2.fromOffset(0, 735)
         QuestShopSection.Size = UDim2.fromOffset(columnWidth, 230)
-        QuestShopSection.Position = UDim2.fromOffset(0, 865)
+        QuestShopSection.Position = UDim2.fromOffset(0, 900)
         ConfigSection.Size = UDim2.fromOffset(columnWidth, 150)
-        ConfigSection.Position = UDim2.fromOffset(0, 1105)
+        ConfigSection.Position = UDim2.fromOffset(0, 1140)
         StatusSection.Size = UDim2.fromOffset(columnWidth, 66)
-        StatusSection.Position = UDim2.fromOffset(0, 1270)
+        StatusSection.Position = UDim2.fromOffset(0, 1305)
 
-        Footer.Position = UDim2.fromOffset(0, 1340)
-        Content.CanvasSize = UDim2.fromOffset(0, 1370)
+        Footer.Position = UDim2.fromOffset(0, 1375)
+        Content.CanvasSize = UDim2.fromOffset(0, 1405)
     end
 
     Content.Size = UDim2.new(1, -20, 1, -76)
@@ -1579,6 +1619,7 @@ end
 -- Reflect loaded settings in the controls.
 updateToggle(RollToggle, AutoRoll)
 updateToggle(SkipButton, SkipAnimation)
+updateToggle(AntiAFKButton, AntiAFK)
 updateToggle(AutoTowerButton, false)
 updateToggle(AutoEquipBestButton, AutoEquipBest)
 updateToggle(AutoHideToggle, AutoHideTowerUI)
@@ -1588,6 +1629,7 @@ updateAutoHideTowerUI()
 -- Auto Roll's loop and the tower retry loop will resume from these states.
 if StartupProfileLoaded then
     updateToggle(RollToggle, AutoRoll)
+    updateToggle(AntiAFKButton, AntiAFK)
     updateToggle(AutoTowerButton, AutoTower)
     updateToggle(AutoEquipBestButton, AutoEquipBest)
     updateToggle(AutoHideToggle, AutoHideTowerUI)
