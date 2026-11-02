@@ -1,16 +1,40 @@
+--[[
+    KYOSH // ANIME DICE - UPDATED CONTROL PANEL
+    LocalScript location: StarterPlayer > StarterPlayerScripts
+
+    Features:
+      - Auto Roll
+      - Manual Roll
+      - Skip Animation toggle (UI only; no confirmed game API was supplied)
+      - Auto Tower with selectable tower buttons, retry, and Auto Equip Best Units
+      - Minimize / restore control panel button
+      - Tower START / STOP
+      - Auto Sell with the game's NumberFormatter compact-number parser
+      - Auto Claim for completed Daily and Weekly quest rewards
+      - Automatic configuration save/load when file APIs are available
+      - Responsive landscape / portrait layout and touch-friendly controls
+
+    IMPORTANT:
+      This script uses the game's existing client modules and remotes.
+      It does not bypass server validation. Auto Sell values are checked by
+      SettingsConfig.IsValid before UpdateAutoSell is fired.
+]]
+
+--// SERVICES
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local HttpService = game:GetService("HttpService")
 local VirtualUser = game:GetService("VirtualUser")
+local VirtualInputManager = game:GetService("VirtualInputManager")
 
 local Player = Players.LocalPlayer
 local PlayerGui = Player:WaitForChild("PlayerGui")
 
 --// CONFIGURATION
 local CONFIG = {
-    RollDelay = 2.5,
-    TowerRetryDelay = 1.5,
+    RollDelay = 1,
+    TowerRetryDelay = 0.5,
     DefaultSellThreshold = 0,
     LandscapeWidth = 820,
     LandscapeHeight = 590,
@@ -564,15 +588,52 @@ AntiAFKButton.MouseButton1Click:Connect(function()
     setStatus(AntiAFK and "ANTI AFK ENABLED" or "ANTI AFK DISABLED")
 end)
 
--- Roblox raises Player.Idled after inactivity. When enabled, send a small
--- virtual input to prevent the client from being marked idle.
-Player.Idled:Connect(function()
-    if not AntiAFK or Destroyed then return end
+-- This game has its own AFK timer in StarterPlayerScripts.AFK.
+-- It resets only when UserInputService receives InputBegan or TouchStarted.
+-- Send an unbound F15 key pulse every five minutes so the game's 18-minute
+-- inactivity timer is reset. Keep Player.Idled as a fallback for Roblox AFK.
+local ANTI_AFK_INTERVAL = 300 -- 5 minutes; game timeout is 1080 seconds
+local AntiAFKInputBusy = false
 
+local function sendGameActivityInput()
+    if not AntiAFK or Destroyed or AntiAFKInputBusy then return end
+    AntiAFKInputBusy = true
+
+    local sentInput = false
     pcall(function()
-        VirtualUser:CaptureController()
-        VirtualUser:ClickButton2(Vector2.new(0, 0))
+        -- F15 is an otherwise-unused key and should not activate normal
+        -- gameplay controls. The game listens to InputBegan without filtering.
+        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.F15, false, game)
+        task.wait(0.08)
+        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.F15, false, game)
+        sentInput = true
     end)
+
+    if not sentInput then
+        pcall(function()
+            VirtualUser:CaptureController()
+            VirtualUser:ClickButton2(Vector2.new(0, 0))
+        end)
+    end
+
+    AntiAFKInputBusy = false
+end
+
+-- Periodic activity is needed because the game's custom timer is 18 minutes.
+task.spawn(function()
+    while not Destroyed do
+        task.wait(ANTI_AFK_INTERVAL)
+        if AntiAFK then
+            sendGameActivityInput()
+        end
+    end
+end)
+
+-- Also handle Roblox's standard idle event as a secondary fallback.
+Player.Idled:Connect(function()
+    if AntiAFK and not Destroyed then
+        sendGameActivityInput()
+    end
 end)
 
 local function performRoll()
