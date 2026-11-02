@@ -45,6 +45,7 @@ local BuyQuestShopItem = QuestComm:GetSignal("Buy")
 local TowerComm = Network.ClientComm.new(NetworkFolder, false, "Towers")
 local CancelTower = TowerComm:GetFunction("CancelTower")
 local SetAutoTower = TowerComm:GetSignal("SetAutoTower")
+local EquipBestTowerTeam = TowerComm:GetSignal("EquipBestTowerTeam")
 
 --// AUTO SELL NETWORK
 local SellComm = Network.ClientComm.new(NetworkFolder, false, "SellService")
@@ -56,6 +57,7 @@ local SkipAnimation = false
 local IsRolling = false
 
 local AutoTower = false
+local AutoEquipBest = false
 local TowerRunning = false
 local TowerStartBusy = false
 local SelectedTower = "Infinity Tower"
@@ -104,6 +106,7 @@ local function getProfileData()
         AutoRoll = AutoRoll,
         AutoTower = AutoTower,
         AutoTowerRetry = AutoTower,
+        AutoEquipBest = AutoEquipBest,
         SkipAnimation = SkipAnimation,
         SelectedTower = SelectedTower,
         AutoSellEnabled = AutoSellEnabled,
@@ -125,6 +128,7 @@ local function applyProfileData(data)
         savedTowerRetry = data.AutoTower
     end
     AutoTower = savedTowerRetry == true
+    AutoEquipBest = data.AutoEquipBest == true
 
     SkipAnimation = data.SkipAnimation == true
     AutoSellEnabled = data.AutoSellEnabled == true
@@ -322,6 +326,22 @@ CloseButton.TextSize = 23
 CloseButton.AutoButtonColor = true
 CloseButton.Parent = Header
 Instance.new("UICorner", CloseButton).CornerRadius = UDim.new(0, 9)
+
+local MinimizeButton = Instance.new("TextButton")
+MinimizeButton.Name = "MinimizeButton"
+MinimizeButton.Size = UDim2.fromOffset(34, 34)
+MinimizeButton.Position = UDim2.new(1, -86, 0, 12)
+MinimizeButton.BackgroundColor3 = COLORS.PanelLight
+MinimizeButton.BorderSizePixel = 0
+MinimizeButton.Font = Enum.Font.GothamBold
+MinimizeButton.Text = "−"
+MinimizeButton.TextColor3 = COLORS.White
+MinimizeButton.TextSize = 24
+MinimizeButton.AutoButtonColor = true
+MinimizeButton.Parent = Header
+Instance.new("UICorner", MinimizeButton).CornerRadius = UDim.new(0, 9)
+local IsMinimized = false
+local ExpandedMainSize = Main.Size
 
 --// DRAGGING (MOUSE + TOUCH)
 do
@@ -660,6 +680,21 @@ local AutoHideToggle = createButton(
     UDim2.fromOffset(62, 26)
 )
 
+local AutoEquipBestLabel = createLabel(
+    TowerSection,
+    "Auto Equip Best Units",
+    UDim2.fromOffset(13, 272),
+    UDim2.new(1, -115, 0, 18)
+)
+AutoEquipBestLabel.TextSize = 9
+
+local AutoEquipBestButton = createButton(
+    TowerSection,
+    "OFF",
+    UDim2.new(1, -76, 0, 268),
+    UDim2.fromOffset(62, 26)
+)
+
 local function startSelectedTower()
     if Destroyed or TowerStartBusy then return end
     TowerStartBusy = true
@@ -716,6 +751,31 @@ AutoTowerButton.MouseButton1Click:Connect(function()
             SetAutoTower:Fire(false)
         end)
         setStatus("AUTO TOWER DISABLED", COLORS.Gray)
+    end
+end)
+
+AutoEquipBestButton.MouseButton1Click:Connect(function()
+    AutoEquipBest = not AutoEquipBest
+    updateToggle(AutoEquipBestButton, AutoEquipBest)
+    saveConfig(CurrentProfileName)
+    saveConfigSoon()
+    if AutoEquipBest then
+        local ok, err = pcall(function() EquipBestTowerTeam:Fire() end)
+        setStatus(ok and "EQUIPPING BEST UNITS" or "EQUIP BEST FAILED", ok and COLORS.Green or COLORS.Red)
+        if not ok then warn("[KYOSH] EquipBestTowerTeam failed:", err) end
+    else
+        setStatus("AUTO EQUIP BEST DISABLED", COLORS.Gray)
+    end
+end)
+
+task.spawn(function()
+    while not Destroyed do
+        if AutoEquipBest then
+            pcall(function() EquipBestTowerTeam:Fire() end)
+            task.wait(10)
+        else
+            task.wait(0.5)
+        end
     end
 end)
 
@@ -1347,6 +1407,7 @@ local function syncLoadedProfileToUI()
     updateToggle(RollToggle, AutoRoll)
     updateToggle(SkipButton, SkipAnimation)
     updateToggle(AutoTowerButton, AutoTower)
+    updateToggle(AutoEquipBestButton, AutoEquipBest)
     updateToggle(SellToggle, AutoSellEnabled)
     updateToggle(DailyQuestToggle, AutoClaimDaily)
     updateToggle(WeeklyQuestToggle, AutoClaimWeekly)
@@ -1465,7 +1526,7 @@ local function updateLayout()
 
         RollSection.Size = UDim2.fromOffset(columnWidth, 155)
         RollSection.Position = UDim2.fromOffset(0, 0)
-        TowerSection.Size = UDim2.fromOffset(columnWidth, 280)
+        TowerSection.Size = UDim2.fromOffset(columnWidth, 310)
         TowerSection.Position = UDim2.fromOffset(0, 165)
 
         SellSection.Size = UDim2.fromOffset(columnWidth, 205)
@@ -1477,7 +1538,7 @@ local function updateLayout()
         ConfigSection.Size = UDim2.fromOffset(columnWidth, 150)
         ConfigSection.Position = UDim2.fromOffset(rightX, 620)
         StatusSection.Size = UDim2.fromOffset(columnWidth, 66)
-        StatusSection.Position = UDim2.fromOffset(0, 455)
+        StatusSection.Position = UDim2.fromOffset(0, 485)
 
         Footer.Position = UDim2.fromOffset(rightX, 780)
         Content.CanvasSize = UDim2.fromOffset(0, 810)
@@ -1489,21 +1550,21 @@ local function updateLayout()
         local columnWidth = width - 20
         RollSection.Size = UDim2.fromOffset(columnWidth, 155)
         RollSection.Position = UDim2.fromOffset(0, 0)
-        TowerSection.Size = UDim2.fromOffset(columnWidth, 280)
+        TowerSection.Size = UDim2.fromOffset(columnWidth, 310)
         TowerSection.Position = UDim2.fromOffset(0, 165)
         SellSection.Size = UDim2.fromOffset(columnWidth, 205)
-        SellSection.Position = UDim2.fromOffset(0, 455)
+        SellSection.Position = UDim2.fromOffset(0, 485)
         QuestSection.Size = UDim2.fromOffset(columnWidth, 155)
-        QuestSection.Position = UDim2.fromOffset(0, 670)
+        QuestSection.Position = UDim2.fromOffset(0, 700)
         QuestShopSection.Size = UDim2.fromOffset(columnWidth, 230)
-        QuestShopSection.Position = UDim2.fromOffset(0, 835)
+        QuestShopSection.Position = UDim2.fromOffset(0, 865)
         ConfigSection.Size = UDim2.fromOffset(columnWidth, 150)
-        ConfigSection.Position = UDim2.fromOffset(0, 1075)
+        ConfigSection.Position = UDim2.fromOffset(0, 1105)
         StatusSection.Size = UDim2.fromOffset(columnWidth, 66)
-        StatusSection.Position = UDim2.fromOffset(0, 1240)
+        StatusSection.Position = UDim2.fromOffset(0, 1270)
 
-        Footer.Position = UDim2.fromOffset(0, 1310)
-        Content.CanvasSize = UDim2.fromOffset(0, 1340)
+        Footer.Position = UDim2.fromOffset(0, 1340)
+        Content.CanvasSize = UDim2.fromOffset(0, 1370)
     end
 
     Content.Size = UDim2.new(1, -20, 1, -76)
@@ -1519,6 +1580,7 @@ end
 updateToggle(RollToggle, AutoRoll)
 updateToggle(SkipButton, SkipAnimation)
 updateToggle(AutoTowerButton, false)
+updateToggle(AutoEquipBestButton, AutoEquipBest)
 updateToggle(AutoHideToggle, AutoHideTowerUI)
 updateAutoHideTowerUI()
 
@@ -1527,6 +1589,7 @@ updateAutoHideTowerUI()
 if StartupProfileLoaded then
     updateToggle(RollToggle, AutoRoll)
     updateToggle(AutoTowerButton, AutoTower)
+    updateToggle(AutoEquipBestButton, AutoEquipBest)
     updateToggle(AutoHideToggle, AutoHideTowerUI)
 
     -- Persist the normalized/compatible profile and report restored states.
@@ -1539,6 +1602,14 @@ if StartupProfileLoaded then
         )
     end
 
+    if AutoEquipBest then
+        task.delay(0.75, function()
+            if AutoEquipBest and not Destroyed then
+                pcall(function() EquipBestTowerTeam:Fire() end)
+            end
+        end)
+    end
+
     if AutoTower then
         task.delay(0.5, function()
             if AutoTower and not Destroyed then
@@ -1547,6 +1618,26 @@ if StartupProfileLoaded then
         end)
     end
 end
+
+--// MINIMIZE / RESTORE
+MinimizeButton.MouseButton1Click:Connect(function()
+    IsMinimized = not IsMinimized
+    if IsMinimized then
+        ExpandedMainSize = Main.Size
+        Content.Visible = false
+        Main.Size = UDim2.new(0, ExpandedMainSize.X.Offset, 0, 58)
+        MinimizeButton.Text = "+"
+    else
+        -- Always reopen in the middle of the screen. This prevents the full
+        -- panel from expanding off-screen when the minimized bar was dragged
+        -- near the top or edge of the display.
+        Content.Visible = true
+        Main.Size = ExpandedMainSize
+        Main.AnchorPoint = Vector2.new(0.5, 0.5)
+        Main.Position = UDim2.fromScale(0.5, 0.5)
+        MinimizeButton.Text = "−"
+    end
+end)
 
 --// CLOSE / CLEANUP
 CloseButton.MouseButton1Click:Connect(function()
